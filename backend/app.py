@@ -33,7 +33,7 @@ client    = MongoClient(mongo_url)
 db        = client.mydatabase         
 comments  = db.comments             
 
-@app.route("/api/articles/<slug>/comments", methods=["GET"])
+@app.route("/api/articles/<path:slug>/comments", methods=["GET"])
 def get_comments(slug):
     cursor = comments.find({"article": slug})
     result = []
@@ -46,7 +46,7 @@ def get_comments(slug):
         })
     return jsonify(result)
 
-@app.route("/api/articles/<slug>/comments", methods=["POST"])
+@app.route("/api/articles/<path:slug>/comments", methods=["POST"])
 def post_comment(slug):
     #Parse & validate
     data = request.get_json()
