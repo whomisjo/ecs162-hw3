@@ -9,7 +9,7 @@ header {
 }
 
 .logo {   /* added this so the logo doesn't get cut off if display is too small*/
-max-width: 100%;
+  max-width: 100%;
 }
 
 .date {
@@ -134,3 +134,17 @@ footer {
   align-self: flex-end;
   padding: 0.5rem 1rem;
 }
+
+/* header login/account button */
+.login-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: #fff;
+  border: 1px solid #ccc;
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 10;
+}
+

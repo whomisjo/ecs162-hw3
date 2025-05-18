@@ -1,5 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { user, type User } from './lib/user';
+  import { get } from 'svelte/store';
+
+  let currentUser: User | null = null;
+  let showAccountPanel      = false;
+  user.subscribe(u => currentUser = u);
 
   let stories: any[] = [];
   let currentDate: string = '';
@@ -17,6 +23,11 @@
     };
     const today = new Date();
     currentDate = today.toLocaleDateString('en-US', options);
+
+    const res = await fetch('/api/auth/userinfo');
+    if (res.ok) {
+      user.set(await res.json());   // { email: '…' }
+    }
 
     // stories
     try {
@@ -71,6 +82,25 @@
   function closeComments() {
     activeSlug = null;
   }
+
+  function login() {
+    const redirect = encodeURIComponent('http://localhost:5173/callback');
+    window.location.href =
+      `http://localhost:5556/auth?` +
+      `client_id=flask-app&` +
+      `redirect_uri=${redirect}&` + 
+      `response_type=code&` +
+      `scope=openid%20email%20profile`;
+  }
+
+  function logout() {
+    // clear on backend
+    fetch('/api/auth/logout', { method: 'POST' })
+      .then(_ => {
+        user.set(null);
+        showAccountPanel = false;
+      });
+  }
 </script>
 
 <main>
@@ -80,6 +110,15 @@
       <p>{currentDate}</p>
       <p>Today’s Paper</p>
     </div>
+    {#if !currentUser}
+      <button class="login-btn" on:click={login}>
+        Log in
+      </button>
+    {:else}
+      <button class="login-btn" on:click={() => showAccountPanel = true}>
+        Account ⯆
+      </button>
+    {/if}
   </header>
 
 <div class="grid-container">
@@ -142,6 +181,15 @@
           Post
         </button>
       </form>
+    </aside>
+  {/if}
+
+  {#if showAccountPanel}
+    <aside class="account-panel">
+      <button class="close" on:click={() => (showAccountPanel = false)}>✕</button>
+      <p><strong>{currentUser?.email}</strong></p>
+      <p>Good afternoon.</p>
+      <button class="logout-btn" on:click={logout}>Log out</button>
     </aside>
   {/if}
 </main>

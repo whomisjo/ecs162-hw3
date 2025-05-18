@@ -68,6 +68,13 @@ def post_comment(slug):
 
     return jsonify(comment), 201
 
+@app.route("/api/auth/callback")
+def auth_callback():
+    code = request.args["code"]
+    token = oauth_client.fetch_token(code)
+    profile = oauth_client.userinfo()   # e.g. {'email': '…'}
+    session["user"] = profile
+    return jsonify({ "email": profile["email"]})
 
 @app.route('/api/key')
 def get_key():
