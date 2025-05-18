@@ -1,8 +1,10 @@
 import requests
-from flask import Flask, redirect, url_for, session, jsonify
+from flask import Flask, redirect, url_for, session, jsonify, request
 from authlib.integrations.flask_client import OAuth
 from authlib.common.security import generate_token
 import os
+from pymongo import MongoClient
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -25,6 +27,47 @@ oauth.register(
     device_authorization_endpoint="http://dex:5556/device/code",
     client_kwargs={'scope': 'openid email profile'}
 )
+
+mongo_url = os.getenv("MONGO_URI", "mongodb://mongo:27017")
+client    = MongoClient(mongo_url)
+db        = client.mydatabase         
+comments  = db.comments             
+
+@app.route("/api/articles/<slug>/comments", methods=["GET"])
+def get_comments(slug):
+    cursor = comments.find({"article": slug})
+    result = []
+    for doc in cursor:
+        result.append({
+            "id":        str(doc["_id"]),
+            "author":    doc.get("author", "unknown"),
+            "text":      doc.get("text", ""),
+            "created":   doc.get("created")
+        })
+    return jsonify(result)
+
+@app.route("/api/articles/<slug>/comments", methods=["POST"])
+def post_comment(slug):
+    #Parse & validate
+    data = request.get_json()
+    if not data or "text" not in data:
+        return jsonify({"error": "Missing 'text' field"}), 400
+
+    #Build the document
+    comment = {
+        "article": slug,
+        "text":    data["text"],
+        "author":  data.get("author", "anonymous"),
+        "created": datetime.utcnow()
+    }
+
+    result = comments.insert_one(comment)
+    comment["id"] = str(result.inserted_id)
+    comment.pop("_id", None)
+    comment["created"] = comment["created"].isoformat()
+
+    return jsonify(comment), 201
+
 
 @app.route('/api/key')
 def get_key():
