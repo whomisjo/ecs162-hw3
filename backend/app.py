@@ -106,46 +106,58 @@ def auth_logout():
 
 # ─── Commenting API ────────────────────────────────────────────────────────────
 
-# GET comments (anyone can read)
+# GET comments (includes parent)
 @app.route("/api/articles/<path:slug>/comments", methods=["GET"])
 def get_comments(slug):
-    cursor = comments.find({"article": slug})
-    result = []
-    for doc in cursor:
-        result.append({
-            "id":      str(doc["_id"]),
-            "author":  doc.get("author", "unknown"),
-            "text":    doc.get("text", ""),
-            "created": doc.get("created")
+    docs = comments.find({"article": slug})
+    out = []
+    for d in docs:
+        out.append({
+            "id":      str(d["_id"]),
+            "author":  d.get("author", "unknown"),
+            "text":    d.get("text", ""),
+            "created": d.get("created").isoformat(),
+            # Persisted parent or None
+            "parent":  d.get("parent")
         })
-    return jsonify(result)
+    return jsonify(out)
 
-# POST a new comment (must be logged in)
+# POST new comment or reply
 @app.route("/api/articles/<path:slug>/comments", methods=["POST"])
 def post_comment(slug):
     user = session.get("user")
     if not user:
         return jsonify({ "error": "Not logged in" }), 401
 
-    data = request.get_json()
-    if not data or "text" not in data or not data["text"].strip():
-        return jsonify({ "error": "Missing or empty 'text' field" }), 400
+    data = request.get_json() or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({ "error": "Text is required" }), 400
 
-    # Build & save the comment
-    comment = {
+    # build document
+    doc = {
         "article": slug,
-        "text":    data["text"].strip(),
+        "text":    text,
         "author":  user["email"],
         "created": datetime.utcnow()
     }
-    result = comments.insert_one(comment)
+    if data.get("parent"):
+        doc["parent"] = data["parent"]
 
-    # Shape the response
-    comment["id"]      = str(result.inserted_id)
-    comment.pop("_id", None)
-    comment["created"] = comment["created"].isoformat()
+    # insert into Mongo:
+    res = comments.insert_one(doc)
 
-    return jsonify(comment), 201
+    # build a clean response dict (no ObjectId anywhere)
+    response = {
+        "id":      str(res.inserted_id),
+        "article": slug,
+        "text":    text,
+        "author":  user["email"],
+        "created": doc["created"].isoformat(),
+        "parent":  doc.get("parent")  # None if top-level
+    }
+
+    return jsonify(response), 201
 
 # DELETE a comment (only moderators)
 @app.route("/api/articles/<path:slug>/comments/<comment_id>", methods=["DELETE"])
