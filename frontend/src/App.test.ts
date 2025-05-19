@@ -4,6 +4,7 @@ import App from './App.svelte';
 import { describe, test, expect } from 'vitest';
 import { vi } from 'vitest'
 import '@testing-library/jest-dom';
+import { fireEvent } from '@testing-library/svelte';
 
 describe('App.svelte', () => {
   // searches for loading, if true, passes
@@ -98,4 +99,293 @@ describe('App.svelte', () => {
 
   render(App);
   });
+  test('is comment section opened when clicked', async () => {
+    //mocks fetch for articles and comments, waiting for necessary things to load(articles) before checking if button works  
+    global.fetch = vi.fn((url) => {
+      if (url === '/api/auth/userinfo') {
+        return Promise.resolve({
+          ok: false
+        });
+      }
+      if (url === '/api/stories') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ 
+            response: {
+              docs: [
+                {
+                  uri: 'test-article',
+                  headline: { main: 'Test Headline' },
+                  abstract: 'Test abstract',
+                  multimedia: { default: { url: '/img.jpg' } }
+                }
+              ]
+            }
+          })
+        });
+      }
+      if (url.includes('/api/articles/')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([])
+        });
+      }
+      return Promise.reject(new Error('Unknown URL: ' + url));
+    }) as any;
+
+    const { container } = render(App);
+    //waits for stories to load
+    await screen.findByRole('heading', { name: 'Test Headline' });
+    
+    //find anf click comment button
+    const commentBtn = container.querySelector('.comment-btn');
+    await commentBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    //check if comment section is shown
+    const commentsPanel = await screen.findByText('Comments');
+    expect(commentsPanel).toBeInTheDocument();
+  });
+  test('loads comments for a article', async () => {
+    global.fetch = vi.fn((url) => {
+      if (url === '/api/auth/userinfo') {
+        return Promise.resolve({ ok: false });
+      }
+      if (url === '/api/stories') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ 
+            response: {
+              docs: [
+                {
+                  uri: 'test-article',
+                  headline: { main: 'Test Headline' },
+                  abstract: 'Test abstract',
+                  multimedia: { default: { url: '/img.jpg' } }
+                }
+              ]
+            }
+          })
+        });
+      }
+      if (url.includes('/api/articles/test-article/comments')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([
+            {
+              id: 'comment1',
+              author: 'Test User',
+              text: 'This is a test comment',
+              created: new Date().toISOString()
+            }
+          ])
+        });
+      }
+      return Promise.reject(new Error('Unknown URL: ' + url));
+    }) as any;
+
+    const { container } = render(App);
+    
+    await screen.findByRole('heading', { name: 'Test Headline' });
+    
+    const commentBtn = container.querySelector('.comment-btn');
+    await commentBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    
+    const commentText = await screen.findByText('This is a test comment');
+    expect(commentText).toBeInTheDocument();
+    
+    const authorText = await screen.findByText('Test User');
+    expect(authorText).toBeInTheDocument();
+  });
+//posts a new comment when authenticated
+test('moderator can see delete buttons for comments', async () => {
+  //mocks moderator
+  const mockUser = { 
+    email: 'moderator@example.com',
+    groups: ['moderator']
+  };
+  
+  global.fetch = vi.fn((url) => {
+    if (url === '/api/auth/userinfo') {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(mockUser)
+      });
+    }
+    if (url === '/api/stories') {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ 
+          response: {
+            docs: [
+              {
+                uri: 'test-article',
+                headline: { main: 'Test Headline' },
+                abstract: 'Test abstract',
+                multimedia: { default: { url: '/img.jpg' } }
+              }
+            ]
+          }
+        })
+      });
+    }
+    if (url.includes('/api/articles/test-article/comments')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve([
+          {
+            id: 'comment1',
+            author: 'Test User',
+            text: 'This is a test comment',
+            created: new Date().toISOString()
+          }
+        ])
+      });
+    }
+    return Promise.reject(new Error('Unknown URL: ' + url));
+  }) as any;
+
+  const { container } = render(App);
+  
+  await screen.findByRole('heading', { name: 'Test Headline' });
+  
+  const commentBtn = container.querySelector('.comment-btn');
+  await commentBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  
+  //checks if delete button is visible
+  const deleteBtn = await screen.findByLabelText('Delete comment');
+  expect(deleteBtn).toBeInTheDocument();
+  });
+  test('non-moderator cannot see delete buttons for comments', async () => {
+    //mocks authenticated user as non moderator
+    const mockUser = { 
+      email: 'user@example.com',
+      groups: []
+    };
+    
+    global.fetch = vi.fn((url) => {
+      if (url === '/api/auth/userinfo') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockUser)
+        });
+      }
+      if (url === '/api/stories') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ 
+            response: {
+              docs: [
+                {
+                  uri: 'test-article',
+                  headline: { main: 'Test Headline' },
+                  abstract: 'Test abstract',
+                  multimedia: { default: { url: '/img.jpg' } }
+                }
+              ]
+            }
+          })
+        });
+      }
+      if (url.includes('/api/articles/test-article/comments')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([
+            {
+              id: 'comment1',
+              author: 'Test User',
+              text: 'This is a test comment',
+              created: new Date().toISOString()
+            }
+          ])
+        });
+      }
+      return Promise.reject(new Error('Unknown URL: ' + url));
+    }) as any;
+
+    const { container } = render(App);
+    
+    await screen.findByRole('heading', { name: 'Test Headline' });
+    
+    const commentBtn = container.querySelector('.comment-btn');
+    await commentBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    
+    //checks that the delete button is not visible
+    await vi.waitFor(() => {
+      expect(screen.queryByLabelText('Delete comment')).not.toBeInTheDocument();
+    });
+  });
+  //moderator can delete comments
+  test('moderator can delete comments', async () => {
+    //mocks an authenticated user as moderator
+    const mockUser = { 
+      email: 'moderator@example.com',
+      groups: ['moderator']
+    };
+    
+    let deleteUrl = null;
+    
+    global.fetch = vi.fn((url, options) => {
+      if (url === '/api/auth/userinfo') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockUser)
+        });
+      }
+      if (url === '/api/stories') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ 
+            response: {
+              docs: [
+                {
+                  uri: 'test-article',
+                  headline: { main: 'Test Headline' },
+                  abstract: 'Test abstract',
+                  multimedia: { default: { url: '/img.jpg' } }
+                }
+              ]
+            }
+          })
+        });
+      }
+      if (url.includes('/api/articles/test-article/comments') && !options?.method) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([
+            {
+              id: 'comment1',
+              author: 'Test User',
+              text: 'This is a test comment',
+              created: new Date().toISOString()
+            }
+          ])
+        });
+      }
+      if (url.includes('/api/articles/test-article/comments/') && options?.method === 'DELETE') {
+        deleteUrl = url;
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve('')
+        });
+      }
+      return Promise.reject(new Error('Unknown URL: ' + url));
+    }) as any;
+
+    const { container } = render(App);
+    
+    await screen.findByRole('heading', { name: 'Test Headline' });
+    
+    const commentBtn = container.querySelector('.comment-btn');
+    await commentBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    
+    //find and click the delete button
+    const deleteBtn = await screen.findByLabelText('Delete comment');
+    fireEvent.click(deleteBtn);
+    
+    //check if the delete request was made
+    await vi.waitFor(() => {
+      expect(deleteUrl).toBe('/api/articles/test-article/comments/comment1');
+    });
+  });
+
 });
