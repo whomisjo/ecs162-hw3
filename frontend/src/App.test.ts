@@ -1,7 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/svelte';
+import { render } from '@testing-library/svelte';
+import { screen, waitFor } from '@testing-library/dom';
 import App from './App.svelte';
 import { describe, test, expect } from 'vitest';
 import { vi } from 'vitest'
+import '@testing-library/jest-dom';
 
 describe('App.svelte', () => {
   // searches for loading, if true, passes
@@ -62,5 +64,38 @@ describe('App.svelte', () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
   
     expect(fetchSpy).toHaveBeenCalledWith('/api/stories');
+    ///////////////////////////////
+  });
+  test('shows login when not logged in', async () => {
+    //mocks not logged in user and looks for login button by its role to verify
+    global.fetch = vi.fn().mockResolvedValue({
+      json: () => Promise.resolve({})  // no user
+    });
+    render(App);
+    const loginButton = await screen.findByRole('button', { name: /log in/i });
+    expect(loginButton).toBeInTheDocument();
+  });
+  test('shows user email and logout when logged in', async () => {
+  //mocks logged in user, checking if there is logout button and the email is shown
+  global.fetch = vi.fn((url) => {
+    if (url === '/api/auth/userinfo') {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ email: 'user@example.com' })
+      });
+    }
+
+    //mocks creating stories
+    if (url === '/api/stories') {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ response: { docs: [] } })
+      });
+    }
+
+    return Promise.reject(new Error('Unknown URL: ' + url));
+  }) as any;
+
+  render(App);
   });
 });

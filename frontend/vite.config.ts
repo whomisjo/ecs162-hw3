@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => ({
 
   server: mode === 'development'
     ? {
+      
         proxy: {
           '/api': {
             target: 'http://backend:8000',
@@ -24,7 +25,9 @@ export default defineConfig(({ mode }) => ({
     : undefined,
 
   test: {
-    environment: 'jsdom'
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/setupTests.ts'
   },
 
   resolve: process.env.VITEST
