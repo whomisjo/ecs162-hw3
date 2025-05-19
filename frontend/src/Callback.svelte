@@ -1,28 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { user } from './lib/user';
-  import { goto } from '@sveltejs/kit'; // or just use `window.location`
 
-  onMount(async () => {
-    const params = new URLSearchParams(window.location.search);
-    const code   = params.get('code');
+  onMount(() => {
+    const search = window.location.search; 
+    const code = new URLSearchParams(search).get('code');
     if (!code) {
-      return goto('/'); // no code → go home
+      window.location.href = '/';
+      return;
     }
-
-    // Exchange code for token & userinfo
-    const res = await fetch(`/api/auth/callback?code=${code}`);
-    if (res.ok) {
-      const u = await res.json();    // { email: "user@example.com" }
-      user.set(u);
-      // clear URL
-      window.history.replaceState({}, '', '/');
-      goto('/');
-    } else {
-      console.error('Auth failed:', await res.text());
-      goto('/');
-    }
+    // Sends code AND state to Flask in one go, cookies intact
+    window.location.href = `/api/auth/callback${search}`;
   });
 </script>
 
-<p>Logging in…</p>
+<p>Logging you in…</p>

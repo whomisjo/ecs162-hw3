@@ -148,3 +148,33 @@ footer {
   z-index: 10;
 }
 
+.account-panel {
+  position: fixed;
+  top: 0; right: 0;
+  width: 280px;
+  height: 100vh;
+  background: #fafafa;
+  box-shadow: -4px 0 12px rgba(0,0,0,0.1);
+  padding: 1.5rem;
+  z-index: 1000;
+}
+
+.account-panel .close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.logout-btn {
+  margin-top: 1rem;
+  background: #fff;
+  border: 1px solid #ccc;
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
