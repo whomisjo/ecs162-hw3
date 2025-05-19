@@ -1,5 +1,6 @@
 from flask_cors import CORS
 import os
+import secrets
 import requests
 from datetime import datetime
 from flask import (
@@ -18,7 +19,7 @@ app = Flask(__name__, static_folder="dist", static_url_path="/")
 app.secret_key = os.getenv("FLASK_SECRET_KEY")
 app.config.update(
   SESSION_COOKIE_DOMAIN="localhost",
-  SESSION_COOKIE_SAMESITE="Lax",     # or “None” if you need cross-site / iframe flows
+  SESSION_COOKIE_SAMESITE="Lax",
   SESSION_COOKIE_HTTPONLY=True,
 )
 
@@ -40,8 +41,8 @@ oauth.register(
     token_endpoint="http://dex:5556/token",
     jwks_uri="http://dex:5556/keys",
     userinfo_endpoint="http://dex:5556/userinfo",
-    device_authorization_endpoint="http://dex:5556/device/code",
-    client_kwargs={'scope': 'openid email profile'}
+    #device_authorization_endpoint="http://dex:5556/device/code",
+    client_kwargs={"scope": "openid email profile"}
 )
 
 # ─── MongoDB setup ──────────────────────────────────────────────────────────────
@@ -53,27 +54,43 @@ comments  = db.comments
 
 # ─── Authentication endpoints ──────────────────────────────────────────────────
 
+def generate_nonce(length=32):
+    return secrets.token_urlsafe(length)
+
 @app.route("/api/auth/login")
 def auth_login():
-    resp = oauth.flask_app.authorize_redirect(
-        redirect_uri=os.getenv("OIDC_REDIRECT_URI")
+    nonce = generate_nonce()
+    session["auth_nonce"] = nonce
+
+    return oauth.flask_app.authorize_redirect(
+        redirect_uri=os.getenv("OIDC_REDIRECT_URI"),
+        nonce=nonce
     )
-    # client name must match what you set in OIDC_CLIENT_NAME
-    state_key = f"{oauth.flask_app.name}_state"
-    app.logger.debug(f"[LOGIN] session keys: {list(session.keys())}")
-    app.logger.debug(f"[LOGIN] saved state → {session.get(state_key)} (key = {state_key})")
-    return resp
 
 @app.route("/api/auth/callback")
 def auth_callback():
-    app.logger.debug(f"[CALLBACK] session keys *before* authorize_access_token: {list(session.keys())!r}")
-    app.logger.debug(f"[CALLBACK] incoming state          : {request.args.get('state')!r}")
     token = oauth.flask_app.authorize_access_token()
     user_info = oauth.flask_app.parse_id_token(
-        token, nonce=session.get("nonce")
+        token,
+        nonce=session.pop("auth_nonce", None)
     )
+    resp = oauth.flask_app.get(
+        "http://dex:5556/userinfo",
+        token=token
+    )
+    extra = resp.json()
+    user_info.update(extra)
+
+    email = user_info.get("email", "")
+    if email == "admin@hw3.com":
+        user_info["groups"] = ["moderator", "admin"]
+    elif email == "moderator@hw3.com":
+        user_info["groups"] = ["moderator"]
+    else:
+        user_info["groups"] = []  # regular user
+
     session["user"] = user_info
-    return redirect("http://localhost:5173/") 
+    return redirect("http://localhost:5173/")
 
 @app.route("/api/auth/userinfo")
 def userinfo():
@@ -82,47 +99,74 @@ def userinfo():
         return jsonify({}), 401
     return jsonify(user), 200
 
-@app.route("/api/auth/logout")
+@app.route("/api/auth/logout", methods=["GET"])
 def auth_logout():
     session.clear()
     return redirect("http://localhost:5173/")
 
 # ─── Commenting API ────────────────────────────────────────────────────────────
 
+# GET comments (anyone can read)
 @app.route("/api/articles/<path:slug>/comments", methods=["GET"])
 def get_comments(slug):
     cursor = comments.find({"article": slug})
     result = []
     for doc in cursor:
         result.append({
-            "id":        str(doc["_id"]),
-            "author":    doc.get("author", "unknown"),
-            "text":      doc.get("text", ""),
-            "created":   doc.get("created")
+            "id":      str(doc["_id"]),
+            "author":  doc.get("author", "unknown"),
+            "text":    doc.get("text", ""),
+            "created": doc.get("created")
         })
     return jsonify(result)
 
+# POST a new comment (must be logged in)
 @app.route("/api/articles/<path:slug>/comments", methods=["POST"])
 def post_comment(slug):
-    #Parse & validate
-    data = request.get_json()
-    if not data or "text" not in data:
-        return jsonify({"error": "Missing 'text' field"}), 400
+    user = session.get("user")
+    if not user:
+        return jsonify({ "error": "Not logged in" }), 401
 
-    #Build the document
+    data = request.get_json()
+    if not data or "text" not in data or not data["text"].strip():
+        return jsonify({ "error": "Missing or empty 'text' field" }), 400
+
+    # Build & save the comment
     comment = {
         "article": slug,
-        "text":    data["text"],
-        "author":  data.get("author", "anonymous"),
+        "text":    data["text"].strip(),
+        "author":  user["email"],
         "created": datetime.utcnow()
     }
-
     result = comments.insert_one(comment)
-    comment["id"] = str(result.inserted_id)
+
+    # Shape the response
+    comment["id"]      = str(result.inserted_id)
     comment.pop("_id", None)
     comment["created"] = comment["created"].isoformat()
 
     return jsonify(comment), 201
+
+# DELETE a comment (only moderators)
+@app.route("/api/articles/<path:slug>/comments/<comment_id>", methods=["DELETE"])
+def delete_comment(slug, comment_id):
+    user = session.get("user")
+    if not user:
+        return jsonify({"error": "Not logged in"}), 401
+
+    # Only moderators can delete
+    groups = user.get("groups", [])
+    if "moderator" not in groups:
+        return jsonify({"error": "Forbidden"}), 403
+
+    result = comments.delete_one({
+        "_id":     ObjectId(comment_id),
+        "article": slug
+    })
+    if result.deleted_count == 0:
+        return jsonify({"error": "Comment not found"}), 404
+
+    return "", 204
 
 # ─── NYT Proxy ─────────────────────────────────────────────────────────────────
 

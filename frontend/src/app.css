@@ -1,29 +1,29 @@
+/* Global */
 body {
   font-family: Georgia, serif;
 }
 
+/* Header */
 header {
   border-bottom: 1px solid #ccc;
   text-align: center;
   padding: 35px;
 }
-
-.logo {   /* added this so the logo doesn't get cut off if display is too small*/
+.logo {
   max-width: 100%;
 }
-
 .date {
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
 }
-
-.date p {    /* Gets rid of white space between p's for date*/
+.date p {
   margin: 0;
   line-height: 1.3;
 }
 
+/* Footer */
 footer {
   border-top: 2px solid #000;
   text-align: center;
@@ -31,48 +31,45 @@ footer {
   font-size: 1.5em;
 }
 
+/* Story grid */
 .grid-container {
   display: grid;
-  grid-template-columns: 1fr;  /* 1 column by default (mobile) */
+  grid-template-columns: 1fr;
   gap: 20px;
   padding: 20px;
 }
-
-/* Tablet: 2 columns */
 @media (min-width: 768px) {
   .grid-container {
     grid-template-columns: repeat(2, 1fr);
   }
 }
-
-/* Desktop: 3 columns */
 @media (min-width: 1025px) {
   .grid-container {
     grid-template-columns: repeat(3, 1fr);
   }
 }
 
+/* Story cards */
 .story {
-  position: relative; 
+  position: relative;
   background: #fff;
   padding: 0.5rem;
   border: 1px solid #ddd;
   border-radius: 4px;
 }
-
 .story p {
   font-size: 1em;
   line-height: 1.6;
   color: #555;
 }
-
 .story-img {
   display: block;
-  margin: 0 auto 0 auto;
+  margin: 0 auto;
   width: 100%;
   object-fit: cover;
 }
 
+/* Comment button on story */
 .comment-btn {
   position: absolute;
   bottom: 8px;
@@ -89,53 +86,20 @@ footer {
   font-size: 1.1rem;
 }
 
-/* Slide-out panel */
-.comments-panel {
-  position: fixed;
-  top: 0; right: 0;
-  width: 360px;
-  height: 100vh;
-  background: #fafafa;
-  box-shadow: -4px 0 12px rgba(0,0,0,0.1);
-  padding: 1rem 1.5rem;
-  overflow-y: auto;
-  z-index: 1000;
-}
-.comments-panel .close {
-  position: absolute;
-  top: 8px; right: 8px;
-  background: none;
-  border: none;
-  font-size: 1.5rem;
+/* Disabled comment button */
+.comment-btn.disabled {
+  opacity: 0.3;
   cursor: pointer;
 }
-.comments-panel h2 {
-  margin-top: 0;
-}
-.comments-panel ul {
-  list-style: none;
-  padding: 0;
-}
-.comments-panel li {
-  margin-bottom: 0.75rem;
-}
-.comments-panel form {
-  margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-}
-.comments-panel textarea {
-  resize: vertical;
-  padding: 0.5rem;
-  font-family: inherit;
-  margin-bottom: 0.5rem;
-}
-.comments-panel button[type="submit"] {
-  align-self: flex-end;
-  padding: 0.5rem 1rem;
+
+/* “Log in to comment” */
+.login-to-comment button {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
 }
 
-/* header login/account button */
+/* Login/Account button in header */
 .login-btn {
   position: absolute;
   top: 1rem;
@@ -148,9 +112,11 @@ footer {
   z-index: 10;
 }
 
+/* Account panel */
 .account-panel {
   position: fixed;
-  top: 0; right: 0;
+  top: 0;
+  right: 0;
   width: 280px;
   height: 100vh;
   background: #fafafa;
@@ -158,7 +124,6 @@ footer {
   padding: 1.5rem;
   z-index: 1000;
 }
-
 .account-panel .close {
   position: absolute;
   top: 0.5rem;
@@ -168,7 +133,6 @@ footer {
   font-size: 1.25rem;
   cursor: pointer;
 }
-
 .logout-btn {
   margin-top: 1rem;
   background: #fff;
@@ -178,3 +142,125 @@ footer {
   cursor: pointer;
 }
 
+/* Comments panel */
+.comments-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 360px;
+  height: 100vh;
+  background: #fafafa;
+  box-shadow: -4px 0 12px rgba(0,0,0,0.1);
+  padding: 1rem 1.5rem;
+  overflow-y: auto;
+  z-index: 1000;
+}
+.comments-panel .close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+.comments-panel h2 {
+  margin-top: 0;
+}
+
+/* Comment form at top */
+.comments-panel form {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1rem;
+}
+.comments-panel textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 0.5rem;
+  font-family: inherit;
+  margin-bottom: 0.5rem;
+}
+.comments-panel button[type="submit"] {
+  align-self: flex-end;
+  padding: 0.5rem 1rem;
+}
+
+/* Comments list */
+.comments-panel .comments-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.comment-item {
+  position: relative;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid #e0e0e0;  /* ← separator line */
+}
+
+/* Comment header & inline delete */
+.comment-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.delete-btn-inline {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+.delete-btn-inline:hover {
+  opacity: 1;
+  color: #c00;
+}
+
+/* Comment body text */
+.comment-body {
+  margin: 0.25rem 0 0 0;
+  line-height: 1.4;
+}
+
+.reply-link {
+  background: none;
+  border: none;
+  color: #0066cc;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-top: 0.25rem;
+}
+
+.reply-form {
+  margin-top: 0.5rem;
+  margin-left: 1.5rem;  /* indent replies */
+  display: flex;
+  flex-direction: column;
+}
+
+.reply-form textarea {
+  width: 100%;
+  padding: 0.4rem;
+  margin-bottom: 0.25rem;
+  font-family: inherit;
+}
+
+.reply-form button {
+  align-self: flex-end;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.9rem;
+}
+
+.comment-list .comment-item[data-parent] {
+  margin-left: 1.5rem;
+  border-left: 2px solid #e0e0e0;
+  padding-left: 1rem;
+}
+
+.comment-item.comment-reply {
+  margin-left: 1.5rem;
+  border-left: 2px solid #e0e0e0;
+  padding-left: 1rem;
+}

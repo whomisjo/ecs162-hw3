@@ -12,6 +12,8 @@
   let commentsMap: Record<string, any[]> = {};
   let newComments: Record<string, string> = {};
   let activeSlug: string | null = null;
+  let replyTo: string | null = null;
+  let replyText: Record<string, string> = {};
 
   // Date
   onMount(async() => {
@@ -62,25 +64,43 @@
     if (res.ok) commentsMap[slug] = await res.json();
   }
 
-  async function postComment(slug: string) {
-    const text = newComments[slug]?.trim();
-    if (!text) return;
-    const res = await fetch(`/api/articles/${slug}/comments`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text })
-    });
-    if (res.ok) {
-      const c = await res.json();
-      commentsMap = {
-        ...commentsMap,
-      [slug]: [...commentsMap[slug], c]
-      };
-      newComments[slug] = '';
-    } else {
-      console.error('Failed to post:', await res.json());
-    }
+async function postComment(slug: string, parentId?: string) {
+  const text = parentId
+    ? replyText[parentId]?.trim()
+    : newComments[slug]?.trim();
+  if (!text) return;
+
+  const body: any = { text };
+  if (parentId) body.parent = parentId;
+
+  const res = await fetch(`/api/articles/${slug}/comments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    console.error('Failed to post:', await res.text());
+    return;
   }
+
+  const c = await res.json();
+
+  if (parentId) {
+    c.parent = parentId;
+    const existing = commentsMap[slug];
+    const idx = existing.findIndex(x => x.id === parentId);
+    const before = existing.slice(0, idx + 1);
+    const after  = existing.slice(idx + 1);
+    commentsMap[slug] = [...before, c, ...after];
+    replyText[parentId] = '';
+    replyTo = null;
+  } else {
+    // Otherwise it's a top-level comment: push to the end
+    commentsMap[slug] = [...commentsMap[slug], c];
+    newComments[slug] = '';
+  }
+}
 
   async function deleteComment(slug: string, commentId: string) {
     const res = await fetch(
@@ -161,53 +181,88 @@
     <p>2025 The New York Times</p>
   </footer>
 
- {#if activeSlug}
+  {#if activeSlug}
     <aside class="comments-panel">
       <button class="close" on:click={closeComments} aria-label="Close">✕</button>
       <h2>Comments</h2>
-
-      {#if commentsMap[activeSlug]?.length === 0}
-        <p><em>No comments yet.</em></p>
-      {:else}
-        <ul class="comments-list">
-          {#each commentsMap[activeSlug] as c}
-            <li class="comment-item">
-              <div class="comment-body">
-                <strong>{c.author}</strong>
-                <small>({new Date(c.created).toLocaleString()})</small>:
-                <span>{c.text}</span>
-              </div>
-
-              {#if currentUser?.groups?.includes('moderator')}
-                <button
-                  class="delete-btn"
-                  on:click={() => deleteComment(activeSlug, c.id)}
-                  aria-label="Delete comment"
-                >🗑️</button>
-              {/if}
-            </li>
-          {/each}
-        </ul>
-      {/if}
 
       <form on:submit|preventDefault={() => postComment(activeSlug!)}>
         <textarea
           bind:value={newComments[activeSlug!]}
           placeholder="Share your thoughts…"
           rows="4"
-        ></textarea>
+        />
         <button type="submit" disabled={!newComments[activeSlug!]?.trim()}>
           Post
         </button>
       </form>
+
+      {#if commentsMap[activeSlug]?.length === 0}
+        <p><em>No comments yet.</em></p>
+      {:else}
+        <ul class="comments-list">
+          {#each commentsMap[activeSlug] as c}
+            <li class="comment-item {c.parent ? 'comment-reply' : ''}">
+              <p class="comment-header">
+                <strong>{c.author}</strong>
+                <small>
+                  ({new Date(c.created).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day:   'numeric',
+                    year:  'numeric'
+                  })})
+                </small>
+
+                {#if currentUser?.groups?.includes('moderator')}
+                  <button
+                    class="delete-btn-inline"
+                    on:click={() => deleteComment(activeSlug!, c.id)}
+                    aria-label="Delete"
+                  >🗑️</button>
+                {/if}
+              </p>
+
+              <p class="comment-body">{c.text}</p>
+
+              {#if currentUser}
+                <button
+                  class="reply-link"
+                  on:click={() => replyTo = (replyTo === c.id ? null : c.id)}
+                >
+                  Reply
+                </button>
+              {/if}
+
+              {#if replyTo === c.id}
+                <form
+                  class="reply-form"
+                  on:submit|preventDefault={() => {
+                    postComment(activeSlug!, replyTo);
+                    replyTo = null;
+                  }}
+                >
+                  <textarea
+                    bind:value={replyText[c.id]}
+                    placeholder="Your reply…"
+                    rows="2"
+                  />
+                  <button type="submit" disabled={!replyText[c.id]?.trim()}>
+                    Post Reply
+                  </button>
+                </form>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      {/if}
     </aside>
   {/if}
 
   {#if showAccountPanel}
-  <aside class="account-panel">
-    <button class="close" on:click={() => (showAccountPanel = false)}>✕</button>
-    <p><strong>{currentUser?.email}</strong></p>
-    <button class="logout-btn" on:click={logout}>Log out</button>
-  </aside>
-{/if}
+    <aside class="account-panel">
+      <button class="close" on:click={() => (showAccountPanel = false)}>✕</button>
+      <p><strong>{currentUser?.email}</strong></p>
+      <button class="logout-btn" on:click={logout}>Log out</button>
+    </aside>
+  {/if}
 </main>
