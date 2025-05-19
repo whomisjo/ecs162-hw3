@@ -387,5 +387,84 @@ test('moderator can see delete buttons for comments', async () => {
       expect(deleteUrl).toBe('/api/articles/test-article/comments/comment1');
     });
   });
+  test('logout button redirects to /api/auth/logout', async () => {
+    //mock authenticated user
+    const mockUser = { 
+      email: 'user@example.com'
+    };
+    
+    //mock window.location.href assignment
+    const originalLocation = window.location;
+    delete window.location;
+    window.location = { ...originalLocation, href: '' } as any;
+    
+    global.fetch = vi.fn((url) => {
+      if (url === '/api/auth/userinfo') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockUser)
+        });
+      }
+      if (url === '/api/stories') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ 
+            response: {
+              docs: []
+            }
+          })
+        });
+      }
+      return Promise.reject(new Error('Unknown URL: ' + url));
+    }) as any;
 
+    render(App);
+    
+    //fins and clicks account button
+    const accountBtn = await screen.findByText('Account ⯆');
+    fireEvent.click(accountBtn);
+    
+    //finds and clicks logout button
+    const logoutBtn = await screen.findByText('Log out');
+    fireEvent.click(logoutBtn);
+    
+    //check if redirected to logout
+    expect(window.location.href).toBe('/api/auth/logout');
+    window.location = originalLocation;
+  });
+  test('login button redirects to /api/auth/login', async () => {
+    //mocks window location
+    const originalLocation = window.location;
+    delete window.location;
+    window.location = { ...originalLocation, href: '' } as any;
+    
+    global.fetch = vi.fn((url) => {
+      if (url === '/api/auth/userinfo') {
+        return Promise.resolve({
+          ok: false
+        });
+      }
+      if (url === '/api/stories') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ 
+            response: {
+              docs: []
+            }
+          })
+        });
+      }
+      return Promise.reject(new Error('Unknown URL: ' + url));
+    }) as any;
+
+    render(App);
+    
+    //finds and clicks login button
+    const loginBtn = await screen.findByText('Log in');
+    fireEvent.click(loginBtn);
+    
+    //checks if redirected to login
+    expect(window.location.href).toBe('/api/auth/login');
+    window.location = originalLocation;
+  });
 });
